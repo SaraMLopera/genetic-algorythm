@@ -1,0 +1,1027 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>N-Reinas · Algoritmo Genético</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    /* ══════════════════════════════════════════════
+       RESET & TOKENS
+    ══════════════════════════════════════════════ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:          #f4efe9;
+      --surface:     #fffcf8;
+      --surface2:    #f9f4ee;
+      --border:      #e6ddd4;
+      --lavender:    #c9b8e8;
+      --sky:         #b0d0e8;
+      --rose:        #e8c0c8;
+      --mint:        #b8deba;
+      --peach:       #f0d0b8;
+      --text:        #3a322c;
+      --sub:         #7a6f68;
+      --queen-col:   #9a7bc0;
+      --cell-l:      #faf5ef;
+      --cell-d:      #e8ddd0;
+      --attack-bg:   #f5b8c0;
+      --safe-bg:     #b8deba;
+      --shadow:      0 4px 28px rgba(160,140,120,.13);
+      --r:           16px;
+      --font:        'Segoe UI', system-ui, sans-serif;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 28px 16px 72px;
+    }
+
+    /* ══════════════════════════════════════════════
+       HEADER
+    ══════════════════════════════════════════════ */
+    header { text-align: center; margin-bottom: 32px; }
+    header h1 {
+      font-size: clamp(1.5rem,4vw,2.2rem);
+      font-weight: 700;
+      letter-spacing: -.4px;
+    }
+    header h1 .crown { color: var(--queen-col); display: inline-block; }
+    header p { color: var(--sub); font-size: .88rem; margin-top: 6px; max-width: 560px; }
+
+    /* ══════════════════════════════════════════════
+       LAYOUT
+    ══════════════════════════════════════════════ */
+    .layout {
+      display: grid;
+      grid-template-columns: 290px 1fr;
+      gap: 22px;
+      width: 100%;
+      max-width: 1140px;
+    }
+    @media(max-width:800px){ .layout{ grid-template-columns:1fr; } }
+
+    .right-col { display: flex; flex-direction: column; gap: 22px; }
+
+    /* ══════════════════════════════════════════════
+       CARD
+    ══════════════════════════════════════════════ */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 22px;
+      box-shadow: var(--shadow);
+    }
+    .card-title {
+      font-size: .72rem;
+      font-weight: 700;
+      letter-spacing: .09em;
+      text-transform: uppercase;
+      color: var(--sub);
+      margin-bottom: 14px;
+    }
+
+    /* ══════════════════════════════════════════════
+       SLIDERS
+    ══════════════════════════════════════════════ */
+    .sl-group { margin-bottom: 12px; }
+    .sl-group label {
+      display: flex;
+      justify-content: space-between;
+      font-size: .82rem;
+      color: var(--sub);
+      margin-bottom: 4px;
+    }
+    .sl-group label span { font-weight: 700; color: var(--text); min-width:38px; text-align:right; }
+    input[type=range] {
+      -webkit-appearance: none;
+      width: 100%; height: 5px;
+      border-radius: 99px;
+      background: var(--border);
+      outline: none; cursor: pointer;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      background: var(--lavender);
+      border: 2px solid #fff;
+      box-shadow: 0 1px 5px rgba(0,0,0,.14);
+      transition: background .12s;
+    }
+    input[type=range]::-webkit-slider-thumb:hover { background: var(--queen-col); }
+
+    /* ══════════════════════════════════════════════
+       BUTTONS
+    ══════════════════════════════════════════════ */
+    .btn-row { display: flex; gap: 7px; margin-top: 16px; flex-wrap: wrap; }
+    button {
+      flex: 1; min-width: 70px;
+      padding: 9px 12px;
+      border: none; border-radius: 10px;
+      font-size: .82rem; font-weight: 600;
+      cursor: pointer;
+      transition: all .14s;
+    }
+    #btn-start { background: var(--lavender); color: var(--text); }
+    #btn-run   { background: var(--mint);     color: var(--text); }
+    #btn-step  { background: var(--sky);      color: var(--text); }
+    #btn-stop  { background: var(--rose);     color: var(--text); }
+    #btn-reset { background: var(--border);   color: var(--sub);  }
+    button:hover:not(:disabled) { filter: brightness(.93); transform: translateY(-1px); }
+    button:active:not(:disabled) { transform: translateY(0); }
+    button:disabled { opacity: .4; cursor: default; }
+
+    /* ══════════════════════════════════════════════
+       STATS PILLS
+    ══════════════════════════════════════════════ */
+    .pills { display: grid; grid-template-columns:1fr 1fr; gap: 9px; margin-bottom:18px; }
+    .pill {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 9px 12px;
+      text-align: center;
+    }
+    .pill .val {
+      font-size: 1.35rem;
+      font-weight: 700;
+      line-height: 1;
+      transition: color .3s;
+    }
+    .pill .lbl { font-size: .67rem; color: var(--sub); margin-top: 2px; letter-spacing:.04em; }
+    #p-gen  .val { color: var(--sky); }
+    #p-fit  .val { color: var(--queen-col); }
+    #p-col  .val { color: #c07880; }
+    #p-pct  .val { color: var(--mint); }
+
+    /* pop animation on value change */
+    @keyframes valPop {
+      0%  { transform: scale(1.5); opacity: .5; }
+      60% { transform: scale(.95); }
+      100%{ transform: scale(1);   opacity: 1; }
+    }
+    .val.popping { animation: valPop .35s ease forwards; }
+
+    /* ══════════════════════════════════════════════
+       CHROMOSOME
+    ══════════════════════════════════════════════ */
+    .chromo { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+    .gene {
+      width: 28px; height: 28px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 7px;
+      font-size: .78rem; font-weight: 700;
+      background: var(--lavender);
+      color: var(--text);
+      transition: background .35s, transform .2s;
+    }
+    .gene.conflict {
+      background: var(--attack-bg);
+      animation: conflictPulse .5s ease infinite alternate;
+    }
+    @keyframes conflictPulse {
+      from { box-shadow: 0 0 0 0 rgba(220,100,110,.0); }
+      to   { box-shadow: 0 0 0 5px rgba(220,100,110,.25); }
+    }
+
+    /* ══════════════════════════════════════════════
+       EVENT LOG
+    ══════════════════════════════════════════════ */
+    .log-box {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      height: 108px;
+      overflow-y: auto;
+      font-size: .75rem;
+      color: var(--sub);
+      line-height: 1.6;
+    }
+    .log-box::-webkit-scrollbar { width: 4px; }
+    .log-box::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+    .log-entry { padding: 1px 0; border-bottom: 1px solid var(--border); }
+    .log-entry:last-child { border: none; }
+    .log-entry .gen-tag {
+      display: inline-block;
+      background: var(--lavender);
+      color: var(--text);
+      border-radius: 4px;
+      padding: 0 5px;
+      font-size: .7rem;
+      font-weight: 700;
+      margin-right: 5px;
+    }
+    .log-entry.solved .gen-tag { background: var(--mint); }
+    .log-entry.improved .gen-tag { background: var(--peach); }
+
+    /* ══════════════════════════════════════════════
+       MAIN BOARD
+    ══════════════════════════════════════════════ */
+    .board-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+    }
+
+    #board {
+      display: inline-grid;
+      border: 2px solid var(--border);
+      border-radius: 13px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+
+    .cell {
+      display: flex; align-items: center; justify-content: center;
+      position: relative;
+      transition: background .4s;
+    }
+    .cell.light { background: var(--cell-l); }
+    .cell.dark  { background: var(--cell-d); }
+    .cell.safe  { background: var(--safe-bg) !important; }
+    .cell.atk   { background: var(--attack-bg) !important; }
+
+    /* queen SVG sprite */
+    .queen {
+      position: absolute;
+      width: 68%; height: 68%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.25em;
+      pointer-events: none;
+      /* entrance animation */
+      animation: queenEnter .3s cubic-bezier(.34,1.56,.64,1) forwards;
+    }
+    @keyframes queenEnter {
+      0%  { transform: scale(0) rotate(-20deg); opacity: 0; }
+      100%{ transform: scale(1) rotate(0deg);   opacity: 1; }
+    }
+    .queen.leaving {
+      animation: queenLeave .22s ease forwards;
+    }
+    @keyframes queenLeave {
+      to { transform: scale(0) rotate(15deg); opacity: 0; }
+    }
+
+    /* attack flash overlay on cell */
+    .cell.flash-atk {
+      animation: flashAtk .55s ease;
+    }
+    @keyframes flashAtk {
+      0%,100% { background: inherit; }
+      40%     { background: #f09098 !important; }
+    }
+
+    /* solved glow on board */
+    #board.solved {
+      box-shadow: 0 0 0 3px var(--mint), 0 6px 32px rgba(100,180,110,.25);
+      transition: box-shadow .5s;
+    }
+
+    /* solved banner */
+    #solved-banner {
+      display: none;
+      padding: 7px 22px;
+      background: var(--mint);
+      border: 1px solid #a0d0a4;
+      border-radius: 99px;
+      font-size: .84rem;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: .02em;
+    }
+    #solved-banner.show {
+      display: block;
+      animation: bannerIn .45s cubic-bezier(.34,1.56,.64,1);
+    }
+    @keyframes bannerIn {
+      from { transform: translateY(10px) scale(.9); opacity: 0; }
+      to   { transform: translateY(0) scale(1);     opacity: 1; }
+    }
+
+    /* ══════════════════════════════════════════════
+       SPEED INDICATOR
+    ══════════════════════════════════════════════ */
+    .speed-row {
+      display: flex; align-items: center; gap: 8px;
+      font-size: .78rem; color: var(--sub);
+    }
+    .speed-row input[type=range] { flex: 1; }
+    .speed-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--mint);
+      flex-shrink: 0;
+    }
+    .speed-dot.running { animation: pulse 1s ease infinite; }
+    @keyframes pulse {
+      0%,100% { box-shadow: 0 0 0 0 rgba(100,190,120,.5); }
+      50%     { box-shadow: 0 0 0 6px rgba(100,190,120,.0); }
+    }
+
+    /* ══════════════════════════════════════════════
+       FITNESS CHART
+    ══════════════════════════════════════════════ */
+    .chart-wrap { position: relative; height: 200px; }
+
+    /* ══════════════════════════════════════════════
+       TOP-5 MINI BOARDS
+    ══════════════════════════════════════════════ */
+    .pop-panel {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: flex-start;
+    }
+    .mini-card {
+      flex: 1;
+      min-width: 80px;
+      max-width: 160px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 8px 8px;
+      transition: box-shadow .3s, border-color .3s;
+    }
+    .mini-card.best-card {
+      border-color: var(--queen-col);
+      box-shadow: 0 0 0 2px rgba(154,123,192,.2);
+    }
+    .mini-rank {
+      font-size: .65rem;
+      font-weight: 700;
+      letter-spacing: .05em;
+      color: var(--sub);
+      text-transform: uppercase;
+    }
+    .mini-board {
+      display: inline-grid;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .mini-cell {
+      display: flex; align-items: center; justify-content: center;
+      font-size: .55em;
+      transition: background .3s;
+    }
+    .mini-cell.ml  { background: var(--cell-l); }
+    .mini-cell.md  { background: var(--cell-d); }
+    .mini-cell.ms  { background: var(--safe-bg) !important; }
+    .mini-cell.ma  { background: var(--attack-bg) !important; }
+    .mini-fit {
+      font-size: .72rem;
+      font-weight: 700;
+      color: var(--queen-col);
+    }
+    .mini-col-tag {
+      font-size: .62rem;
+      color: var(--sub);
+    }
+
+    /* ══════════════════════════════════════════════
+       PROGRESS BAR
+    ══════════════════════════════════════════════ */
+    .progress-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .progress-bar {
+      flex: 1;
+      height: 8px;
+      background: var(--border);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--lavender), var(--queen-col));
+      border-radius: 99px;
+      width: 0%;
+      transition: width .4s ease;
+    }
+    .progress-label { font-size: .75rem; color: var(--sub); white-space: nowrap; }
+
+    /* ══════════════════════════════════════════════
+       FORMULA
+    ══════════════════════════════════════════════ */
+    .formula {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: .78rem;
+      color: var(--sub);
+      line-height: 1.8;
+      margin-top: 14px;
+    }
+    .formula code {
+      background: var(--border);
+      padding: 1px 6px;
+      border-radius: 5px;
+      color: var(--text);
+      font-size: .86em;
+    }
+
+    /* scrollbar global */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1><span class="crown">♛</span> N-Reinas &mdash; Algoritmo Genético</h1>
+  <p>Observa cómo la evolución encuentra una solución generación a generación · Cromosoma por columnas · Cruce OX1 · Selección por torneo</p>
+</header>
+
+<div class="layout">
+
+  <!-- ════════════════ LEFT PANEL ════════════════ -->
+  <div style="display:flex;flex-direction:column;gap:18px;">
+
+    <!-- Parameters -->
+    <div class="card">
+      <div class="card-title">Parámetros</div>
+
+      <div class="sl-group">
+        <label>N (tablero) <span id="lbl-n">8</span></label>
+        <input type="range" id="sl-n" min="4" max="20" value="8">
+      </div>
+      <div class="sl-group">
+        <label>Población <span id="lbl-pop">100</span></label>
+        <input type="range" id="sl-pop" min="20" max="500" step="10" value="100">
+      </div>
+      <div class="sl-group">
+        <label>Mutación <span id="lbl-mut">0.05</span></label>
+        <input type="range" id="sl-mut" min="0" max="0.5" step="0.01" value="0.05">
+      </div>
+      <div class="sl-group">
+        <label>Élite <span id="lbl-elite">10</span></label>
+        <input type="range" id="sl-elite" min="1" max="50" value="10">
+      </div>
+      <div class="sl-group">
+        <label>Máx. generaciones <span id="lbl-maxgen">1000</span></label>
+        <input type="range" id="sl-maxgen" min="50" max="5000" step="50" value="1000">
+      </div>
+      <div class="sl-group">
+        <label>Torneo k <span id="lbl-tour">5</span></label>
+        <input type="range" id="sl-tour" min="2" max="20" value="5">
+      </div>
+
+      <!-- Speed -->
+      <div class="sl-group" style="margin-top:14px;">
+        <label>Velocidad <span id="lbl-speed">80 ms</span></label>
+        <div class="speed-row">
+          <span>Rápido</span>
+          <input type="range" id="sl-speed" min="10" max="800" step="10" value="80">
+          <span>Lento</span>
+          <div class="speed-dot" id="speed-dot"></div>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button id="btn-start">Iniciar</button>
+        <button id="btn-run"  disabled>▶ Correr</button>
+      </div>
+      <div class="btn-row">
+        <button id="btn-step" disabled>Paso ›</button>
+        <button id="btn-stop" disabled>⏹</button>
+        <button id="btn-reset" disabled>↺ Reset</button>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="card">
+      <div class="card-title">Estadísticas</div>
+
+      <!-- Progress bar -->
+      <div class="progress-wrap">
+        <div class="progress-bar"><div class="progress-fill" id="prog-fill"></div></div>
+        <div class="progress-label" id="prog-label">0 / —</div>
+      </div>
+
+      <div class="pills">
+        <div class="pill" id="p-gen">
+          <div class="val" id="v-gen">—</div>
+          <div class="lbl">Generación</div>
+        </div>
+        <div class="pill" id="p-fit">
+          <div class="val" id="v-fit">—</div>
+          <div class="lbl">Fitness</div>
+        </div>
+        <div class="pill" id="p-col">
+          <div class="val" id="v-col">—</div>
+          <div class="lbl">Colisiones</div>
+        </div>
+        <div class="pill" id="p-pct">
+          <div class="val" id="v-pct">—</div>
+          <div class="lbl">Completado</div>
+        </div>
+      </div>
+
+      <!-- Chromosome -->
+      <div class="card-title" style="margin-bottom:6px;">Cromosoma Mejor Individuo</div>
+      <div class="chromo" id="chromo"></div>
+
+      <!-- Formula -->
+      <div class="formula">
+        <strong style="color:var(--text);">Fitness</strong> = Pares − Colisiones<br>
+        Pares = <code>N×(N−1)/2</code><br>
+        Diagonal: <code>|i−j| = |chr[i]−chr[j]|</code>
+      </div>
+    </div>
+
+    <!-- Event log -->
+    <div class="card" style="padding-bottom:16px;">
+      <div class="card-title">Registro de Eventos</div>
+      <div class="log-box" id="log"></div>
+    </div>
+
+  </div>
+
+  <!-- ════════════════ RIGHT PANEL ════════════════ -->
+  <div class="right-col">
+
+    <!-- Main board -->
+    <div class="card board-wrap">
+      <div class="card-title" style="align-self:flex-start;width:100%;">Mejor Individuo</div>
+      <div id="board"></div>
+      <div id="solved-banner">✓ Solución encontrada — 0 colisiones</div>
+    </div>
+
+    <!-- Chart -->
+    <div class="card">
+      <div class="card-title">Evolución del Fitness</div>
+      <div class="chart-wrap">
+        <canvas id="chart"></canvas>
+      </div>
+    </div>
+
+    <!-- Population panel -->
+    <div class="card">
+      <div class="card-title">Top 5 Individuos de la Generación</div>
+      <div class="pop-panel" id="pop-panel"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════ SCRIPT ═══════════════════════════ -->
+<script>
+'use strict';
+
+// ─────────────────────────────────────────
+// Slider bindings
+// ─────────────────────────────────────────
+function bindSl(id, lblId, fmt) {
+  const sl = document.getElementById(id);
+  const lb = document.getElementById(lblId);
+  lb.textContent = fmt(sl.value);
+  sl.addEventListener('input', () => lb.textContent = fmt(sl.value));
+}
+bindSl('sl-n',     'lbl-n',     v => v);
+bindSl('sl-pop',   'lbl-pop',   v => v);
+bindSl('sl-mut',   'lbl-mut',   v => parseFloat(v).toFixed(2));
+bindSl('sl-elite', 'lbl-elite', v => v);
+bindSl('sl-maxgen','lbl-maxgen',v => v);
+bindSl('sl-tour',  'lbl-tour',  v => v);
+bindSl('sl-speed', 'lbl-speed', v => v + ' ms');
+
+// ─────────────────────────────────────────
+// State
+// ─────────────────────────────────────────
+let currentN      = 8;
+let maxFitness    = 28;
+let maxGenerations= 1000;
+let prevChromosome= null;
+let prevFitness   = -1;
+let eventSource   = null;
+let running       = false;
+let started       = false;
+
+// ─────────────────────────────────────────
+// Utility: attacking columns
+// ─────────────────────────────────────────
+function attackingCols(chr) {
+  const n = chr.length, s = new Set();
+  for (let i = 0; i < n; i++)
+    for (let j = i+1; j < n; j++)
+      if (chr[i]===chr[j] || Math.abs(i-j)===Math.abs(chr[i]-chr[j]))
+        { s.add(i); s.add(j); }
+  return s;
+}
+
+// ─────────────────────────────────────────
+// Main board
+// ─────────────────────────────────────────
+function buildBoard(n) {
+  currentN = n;
+  const sz = Math.max(30, Math.min(58, Math.floor(490/n)));
+  const board = document.getElementById('board');
+  board.style.gridTemplateColumns = `repeat(${n}, ${sz}px)`;
+  board.innerHTML = '';
+  board.classList.remove('solved');
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell ' + ((r+c)%2===0 ? 'light' : 'dark');
+      cell.style.width = cell.style.height = sz + 'px';
+      cell.style.fontSize = Math.round(sz*.54) + 'px';
+      cell.dataset.r = r; cell.dataset.c = c;
+      board.appendChild(cell);
+    }
+  }
+}
+
+function renderBoard(chr, animate=true) {
+  if (!chr || chr.length===0) return;
+  const n = chr.length;
+  if (n !== currentN) buildBoard(n);
+  const atk = attackingCols(chr);
+  const cells = document.querySelectorAll('#board .cell');
+
+  cells.forEach(cell => {
+    const r = +cell.dataset.r, c = +cell.dataset.c;
+    const hasQueen = chr[c] === r;
+    const wasQueen = prevChromosome && prevChromosome[c] === r;
+
+    cell.classList.remove('safe','atk');
+
+    if (hasQueen) {
+      cell.classList.add(atk.has(c) ? 'atk' : 'safe');
+      if (!wasQueen || !animate) {
+        // queen just arrived — animate in
+        cell.innerHTML = '';
+        const q = document.createElement('span');
+        q.className = 'queen';
+        q.textContent = '♛';
+        cell.appendChild(q);
+      }
+    } else {
+      if (wasQueen && animate) {
+        // queen is leaving — animate out then remove
+        const existing = cell.querySelector('.queen');
+        if (existing) {
+          existing.classList.add('leaving');
+          setTimeout(() => { existing.remove(); }, 220);
+        }
+      } else {
+        cell.innerHTML = '';
+      }
+    }
+
+    // flash attack cells
+    if (atk.has(c) && chr[c] === r && animate) {
+      cell.classList.add('flash-atk');
+      cell.addEventListener('animationend', () => cell.classList.remove('flash-atk'), {once:true});
+    }
+  });
+
+  if (atk.size === 0) {
+    document.getElementById('board').classList.add('solved');
+  }
+
+  prevChromosome = chr.slice();
+}
+
+// ─────────────────────────────────────────
+// Chromosome pills
+// ─────────────────────────────────────────
+function renderChromo(chr) {
+  const atk = attackingCols(chr);
+  const row = document.getElementById('chromo');
+  // rebuild only if N changed
+  if (row.children.length !== chr.length) {
+    row.innerHTML = '';
+    chr.forEach(() => {
+      const g = document.createElement('div');
+      g.className = 'gene';
+      row.appendChild(g);
+    });
+  }
+  Array.from(row.children).forEach((g, i) => {
+    g.textContent = chr[i];
+    g.className = 'gene' + (atk.has(i) ? ' conflict' : '');
+    g.title = `Col ${i} → Fila ${chr[i]}`;
+  });
+}
+
+// ─────────────────────────────────────────
+// Stats pills with pop animation
+// ─────────────────────────────────────────
+function setPill(id, val) {
+  const el = document.getElementById(id);
+  if (el.textContent === String(val)) return;
+  el.textContent = val;
+  el.classList.remove('popping');
+  void el.offsetWidth; // reflow
+  el.classList.add('popping');
+  el.addEventListener('animationend', () => el.classList.remove('popping'), {once:true});
+}
+
+function updateStats(state) {
+  setPill('v-gen', state.generation ?? '—');
+  setPill('v-fit', state.best_fitness ?? '—');
+  setPill('v-col', state.collisions ?? '—');
+  const pct = state.max_fitness
+    ? Math.round((state.best_fitness / state.max_fitness) * 100) + '%'
+    : '—';
+  setPill('v-pct', pct);
+
+  // progress bar
+  const fill  = document.getElementById('prog-fill');
+  const label = document.getElementById('prog-label');
+  const ratio = state.max_fitness
+    ? (state.best_fitness / state.max_fitness * 100).toFixed(1)
+    : 0;
+  fill.style.width = ratio + '%';
+  label.textContent = `${state.best_fitness ?? 0} / ${state.max_fitness ?? '—'}`;
+}
+
+// ─────────────────────────────────────────
+// Event log
+// ─────────────────────────────────────────
+let lastLogFitness = -1;
+function addLog(state) {
+  const log = document.getElementById('log');
+  const entry = document.createElement('div');
+  const improved = state.best_fitness > lastLogFitness;
+  entry.className = 'log-entry' + (state.solved ? ' solved' : (improved ? ' improved' : ''));
+  lastLogFitness = state.best_fitness;
+
+  const tag = `<span class="gen-tag">Gen ${state.generation}</span>`;
+  let msg = '';
+  if (state.solved)
+    msg = `🎉 ¡Solución perfecta! Fitness ${state.best_fitness}/${state.max_fitness}`;
+  else if (improved)
+    msg = `↑ Mejor fitness → ${state.best_fitness} (${state.collisions} colisiones)`;
+  else
+    msg = `Fitness ${state.best_fitness} · Colisiones ${state.collisions}`;
+
+  entry.innerHTML = tag + msg;
+  log.prepend(entry);
+
+  // cap at 60 entries
+  while (log.children.length > 60) log.removeChild(log.lastChild);
+}
+
+// ─────────────────────────────────────────
+// Chart
+// ─────────────────────────────────────────
+let chart;
+function initChart() {
+  if (chart) chart.destroy();
+  const ctx = document.getElementById('chart').getContext('2d');
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [
+        {
+          label: 'Mejor Fitness',
+          data: [],
+          borderColor: '#c9b8e8',
+          backgroundColor: 'rgba(201,184,232,.18)',
+          fill: true,
+          tension: .4,
+          pointRadius: 0,
+          borderWidth: 2.5,
+        },
+        {
+          label: 'Promedio',
+          data: [],
+          borderColor: '#b0d0e8',
+          backgroundColor: 'rgba(176,208,232,.08)',
+          fill: false,
+          tension: .4,
+          pointRadius: 0,
+          borderWidth: 1.5,
+          borderDash: [5,3],
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 0 },
+      plugins: {
+        legend: { labels: { color:'#7a6f68', font:{size:11}, boxWidth:18 } }
+      },
+      scales: {
+        x: {
+          ticks: { color:'#7a6f68', font:{size:10}, maxTicksLimit:10 },
+          grid:  { color:'rgba(0,0,0,.04)' }
+        },
+        y: {
+          min: 0,
+          ticks: { color:'#7a6f68', font:{size:10} },
+          grid:  { color:'rgba(0,0,0,.06)' }
+        }
+      }
+    }
+  });
+}
+
+function updateChart(history) {
+  if (!chart || !history?.length) return;
+  chart.data.labels                  = history.map(h => h.generation);
+  chart.data.datasets[0].data        = history.map(h => h.best_fitness);
+  chart.data.datasets[1].data        = history.map(h => h.avg_fitness);
+  chart.update('none');
+}
+
+// ─────────────────────────────────────────
+// Mini boards (top-5 population panel)
+// ─────────────────────────────────────────
+function buildMiniBoard(chr) {
+  const n   = chr.length;
+  const sz  = Math.max(8, Math.min(18, Math.floor(110/n)));
+  const atk = attackingCols(chr);
+  const board = document.createElement('div');
+  board.className = 'mini-board';
+  board.style.gridTemplateColumns = `repeat(${n},${sz}px)`;
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'mini-cell ';
+      const base = (r+c)%2===0 ? 'ml' : 'md';
+      const hasQ = chr[c] === r;
+      cell.classList.add(hasQ ? (atk.has(c) ? 'ma' : 'ms') : base);
+      cell.style.width = cell.style.height = sz+'px';
+      if (hasQ) cell.textContent = '♛';
+      board.appendChild(cell);
+    }
+  }
+  return board;
+}
+
+function renderPopPanel(top5) {
+  if (!top5?.length) return;
+  const panel = document.getElementById('pop-panel');
+
+  top5.forEach((ind, i) => {
+    let card = panel.children[i];
+    if (!card) {
+      card = document.createElement('div');
+      card.className = 'mini-card';
+      card.innerHTML = `
+        <div class="mini-rank">#${i+1}</div>
+        <div class="mini-board-slot"></div>
+        <div class="mini-fit"></div>
+        <div class="mini-col-tag"></div>`;
+      panel.appendChild(card);
+    }
+
+    card.className = 'mini-card' + (i===0 ? ' best-card' : '');
+    const slot = card.querySelector('.mini-board-slot');
+    slot.innerHTML = '';
+    slot.appendChild(buildMiniBoard(ind.chromosome));
+    card.querySelector('.mini-fit').textContent = `Fitness: ${ind.fitness}`;
+    card.querySelector('.mini-col-tag').textContent = `${ind.collisions} col.`;
+  });
+
+  // remove extra cards if top5 shrinks (edge case)
+  while (panel.children.length > top5.length)
+    panel.removeChild(panel.lastChild);
+}
+
+// ─────────────────────────────────────────
+// Full state apply
+// ─────────────────────────────────────────
+function applyState(state, animate=true) {
+  updateStats(state);
+  if (state.best_individual?.length)
+    renderBoard(state.best_individual, animate);
+  if (state.best_individual?.length)
+    renderChromo(state.best_individual);
+  if (state.history)
+    updateChart(state.history);
+  if (state.top5)
+    renderPopPanel(state.top5);
+  addLog(state);
+
+  if (state.solved) {
+    document.getElementById('solved-banner').classList.add('show');
+  }
+}
+
+// ─────────────────────────────────────────
+// Button wiring
+// ─────────────────────────────────────────
+function setBtns(s, r) {
+  started = s;
+  running = r;
+  document.getElementById('btn-start').disabled = r;
+  document.getElementById('btn-run').disabled   = !s || r;
+  document.getElementById('btn-step').disabled  = !s || r;
+  document.getElementById('btn-stop').disabled  = !r;
+  document.getElementById('btn-reset').disabled = !s || r;
+  document.getElementById('speed-dot').classList.toggle('running', r);
+}
+
+function getParams() {
+  return {
+    n:               +document.getElementById('sl-n').value,
+    population_size: +document.getElementById('sl-pop').value,
+    mutation_rate:   +document.getElementById('sl-mut').value,
+    elite_size:      +document.getElementById('sl-elite').value,
+    max_generations: +document.getElementById('sl-maxgen').value,
+    tournament_size: +document.getElementById('sl-tour').value,
+  };
+}
+
+async function doStart() {
+  const p = getParams();
+  maxGenerations = p.max_generations;
+  const res = await fetch('/api/start', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(p)
+  });
+  const data = await res.json();
+  maxFitness = data.max_fitness;
+
+  buildBoard(p.n);
+  initChart();
+  prevChromosome  = null;
+  prevFitness     = -1;
+  lastLogFitness  = -1;
+
+  document.getElementById('solved-banner').classList.remove('show');
+  document.getElementById('log').innerHTML = '';
+  document.getElementById('pop-panel').innerHTML = '';
+  document.getElementById('chromo').innerHTML = '';
+  document.getElementById('board').classList.remove('solved');
+  document.getElementById('prog-fill').style.width = '0%';
+  document.getElementById('prog-label').textContent = `0 / ${data.max_fitness}`;
+  ['v-gen','v-fit','v-col','v-pct'].forEach(id => document.getElementById(id).textContent = '—');
+
+  setBtns(true, false);
+
+  // log init
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.innerHTML = `<span class="gen-tag">Init</span> N=${p.n} · Población=${p.population_size} · Máx. Fitness=${data.max_fitness}`;
+  document.getElementById('log').prepend(entry);
+}
+
+function doRun() {
+  if (running) return;
+  setBtns(true, true);
+  const delay = +document.getElementById('sl-speed').value / 1000;
+  eventSource = new EventSource(`/api/stream?delay=${delay}`);
+  eventSource.onmessage = e => {
+    const state = JSON.parse(e.data);
+    applyState(state);
+    if (state.done) stopStream();
+  };
+  eventSource.onerror = () => stopStream();
+}
+
+async function doStep() {
+  const res   = await fetch('/api/step', {method:'POST'});
+  const state = await res.json();
+  applyState(state);
+  if (state.done) setBtns(true, false);
+}
+
+async function stopStream() {
+  if (eventSource) { eventSource.close(); eventSource = null; }
+  await fetch('/api/stop', {method:'POST'});
+  setBtns(true, false);
+}
+
+async function doReset() {
+  await stopStream();
+  await doStart();
+}
+
+document.getElementById('btn-start').addEventListener('click', doStart);
+document.getElementById('btn-run').addEventListener('click',   doRun);
+document.getElementById('btn-step').addEventListener('click',  doStep);
+document.getElementById('btn-stop').addEventListener('click',  stopStream);
+document.getElementById('btn-reset').addEventListener('click', doReset);
+
+// init empty board
+buildBoard(8);
+initChart();
+</script>
+</body>
+</html>
